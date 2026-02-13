@@ -10,7 +10,7 @@ MarsXZ Media — настольное приложение для загрузк
 
 ---
 
-## 📸 Скриншоты
+## 📸 Скриншоты программы
 
 <p align="center">
   <a href="Screenshot/main.png">
