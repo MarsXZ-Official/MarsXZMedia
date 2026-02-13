@@ -15,11 +15,13 @@ MarsXZ Media — настольное приложение для загрузк
 <p align="center">
   <a href="Screenshot/main.png">
     <img src="Screenshot/main.png" width="45%" alt="Главное окно">
-    <p align="center">
+  </a>
   <a href="Screenshot/history.png">
     <img src="Screenshot/history.png" width="45%" alt="История">
   </a>
-  </a>
+</p>
+
+<p align="center">
   <a href="Screenshot/settings.png">
     <img src="Screenshot/settings.png" width="45%" alt="Настройки">
   </a>
