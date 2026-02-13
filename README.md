@@ -16,11 +16,6 @@ MarsXZ Media — настольное приложение для загрузк
   <a href="Screenshot/main.png">
     <img src="Screenshot/main.png" width="45%" alt="Главное окно">
   </a>
-  <a href="Screenshot/download.png">
-    <img src="Screenshot/download.png" width="45%" alt="Загрузка">
-  </a>
-</p>
-
 <p align="center">
   <a href="Screenshot/history.png">
     <img src="Screenshot/history.png" width="45%" alt="История">
