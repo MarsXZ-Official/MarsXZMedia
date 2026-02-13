@@ -1,4 +1,5 @@
-# MarsXZ Media
+# MarsXZ Media ![License](https://img.shields.io/badge/license-MIT-blue) ![Release](https://img.shields.io/github/v/release/MarsXz8656/MarsXZMedia)
+
 
 MarsXZ Media — настольное приложение для загрузки видео и аудио с YouTube.
 Программа предназначена для быстрого и удобного скачивания медиафайлов
