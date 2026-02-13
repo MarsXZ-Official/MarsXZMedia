@@ -61,7 +61,7 @@ Minecraft принадлежат их владельцам.
 
 ## Установка
 
-1. Скачайте установщик из раздела Releases
+1. Скачайте установщик из раздела Releases ![Release](https://img.shields.io/github/v/release/MarsXz8656/MarsXZMedia)
 2. Запустите установку
 3. Следуйте инструкциям мастера установки
 4. Запустите MarsXZ Media
