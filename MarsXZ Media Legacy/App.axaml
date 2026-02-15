@@ -1,0 +1,43 @@
+﻿<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MarsXZMedia.App"
+             RequestedThemeVariant="Default">
+             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.Resources>
+        <FontFamily x:Key="McFontBold">Segoe UI</FontFamily>
+        <FontFamily x:Key="McFontRegular">Segoe UI</FontFamily>
+        <FontFamily x:Key="McFont">Segoe UI</FontFamily>
+        <LinearGradientBrush x:Key="AppBg" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#F5FBF2" Offset="0.0"/>
+            <GradientStop Color="#E8F6E2" Offset="0.45"/>
+            <GradientStop Color="#D9EED0" Offset="1.0"/>
+        </LinearGradientBrush>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+<Style Selector="Button">
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBlock, Label, Button, CheckBox, ComboBox, ComboBoxItem, MenuItem, TextBox, NumericUpDown">
+            <Setter Property="TextElement.FontFamily" Value="{StaticResource McFontRegular}"/>
+        </Style>
+        <Style Selector="TextBlock[FontWeight=Bold], Label[FontWeight=Bold], Button[FontWeight=Bold], CheckBox[FontWeight=Bold], ComboBox[FontWeight=Bold], ComboBoxItem[FontWeight=Bold], MenuItem[FontWeight=Bold]">
+            <Setter Property="TextElement.FontFamily" Value="{StaticResource McFontBold}"/>
+        </Style>
+        <Style Selector="TextBlock[FontWeight=SemiBold], Label[FontWeight=SemiBold], Button[FontWeight=SemiBold], CheckBox[FontWeight=SemiBold], ComboBox[FontWeight=SemiBold], ComboBoxItem[FontWeight=SemiBold], MenuItem[FontWeight=SemiBold]">
+            <Setter Property="TextElement.FontFamily" Value="{StaticResource McFontBold}"/>
+        </Style>
+        <Style Selector="Window">
+            <Setter Property="Background" Value="White"/>
+        </Style>
+    </Application.Styles>
+</Application>
+
+
+
+
+
+

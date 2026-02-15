@@ -1,0 +1,63 @@
+﻿<Window Icon="/Assets/Icons/MarsXZMedia.png" xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MarsXZMedia.SetupWindow"
+        Title="MarsXZ Media"
+        Width="450" Height="180"
+        WindowStartupLocation="CenterScreen"
+        CanResize="False"
+        SystemDecorations="Full">
+
+        <ContentControl x:Name="MainContent">
+
+    <Grid x:Name="SetupGrid" Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+        <TextBlock x:Name="HeaderTitle" 
+          
+           Grid.Row="0" 
+           Text="Подготовка..." 
+           FontSize="16" 
+           FontWeight="Bold" 
+           Margin="0,0,0,10"/>
+
+        <DockPanel Grid.Row="1" LastChildFill="False" Margin="0,0,0,5">
+            <TextBlock x:Name="PercentText"
+                       Text="0%"
+                       FontWeight="SemiBold"/>
+
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <TextBlock x:Name="SpeedText"
+                           Text="Скорость: 0 Кб/с"
+                           Margin="0,0,15,0"
+                           Foreground="Gray"
+                           FontSize="12"/>
+
+                <TextBlock x:Name="EtaText"
+                           Text="Осталось: --"
+                           Foreground="Gray"
+                           FontSize="12"/>
+            </StackPanel>
+        </DockPanel>
+
+        <ProgressBar Grid.Row="2"
+                     x:Name="MainProgressBar"
+                     Height="15"
+                     Minimum="0"
+                     Maximum="100"
+                     Value="0"
+                     Foreground="Green"
+                     Background="#E0E0E0"
+                     BorderThickness="1"
+                     BorderBrush="#CCCCCC"/>
+
+        <TextBlock Grid.Row="3"
+                   x:Name="StatusText"
+                   Text="Подготовка к загрузке..."
+                   FontSize="11"
+                   Foreground="DimGray"
+                   Margin="0,10,0,0"/>
+
+
+    </Grid>
+    </ContentControl>
+</Window>
+
+
