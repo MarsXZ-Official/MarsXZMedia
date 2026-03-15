@@ -33,6 +33,7 @@ public partial class SetupWindow : Window
         private bool _isInstalling = false;
         private bool _temporarilyPausedByUser = false;
         private string? _currentDownloadingName = null;
+        private (string Name, string Url, string Path)? _pendingYtDlpUpdateTarget;
         // Добавь эти свойства в класс (лучше всего в начало, после других полей)
         private TextBlock? StatusTextCtrl => this.FindControl<TextBlock>("StatusText");
         private ProgressBar? ProgressBarCtrl => this.FindControl<ProgressBar>("MainProgressBar");
@@ -102,7 +103,7 @@ public SetupWindow()
         this.Loaded += async (s, e) => 
     {
         await Task.Delay(200);
-        if (!EnsureElevatedForSetup())
+        if (!EnsureElevatedForTargets(GetPendingInstallTargets().ToList(), "Для установки компонентов нужен доступ к папке рядом с программой."))
         {
             // Если запуск не повышен — закрываемся, повышенная копия продолжит
             _canCloseWindow = true;
@@ -187,62 +188,55 @@ public SetupWindow()
     });
 };
 }
-                private static bool IsRunningAsAdministrator()
+
+        private IEnumerable<string> GetPendingInstallTargets()
         {
-            try
+            foreach (var file in _filesToDownload)
             {
-                if (!OperatingSystem.IsWindows()) return false;
-                var identity = WindowsIdentity.GetCurrent();
-                var principal = new WindowsPrincipal(identity);
-                return principal.IsInRole(WindowsBuiltInRole.Administrator);
+                if (!File.Exists(file.Path))
+                    yield return file.Path;
             }
-            catch { return false; }
-        }
-        private static bool CanWriteToAppDirectory()
-        {
-            try
+
+            if (_pendingYtDlpUpdateTarget.HasValue)
+                yield return _pendingYtDlpUpdateTarget.Value.Path;
+
+            if (!IsJsRuntimeAvailable())
             {
-                string testFile = Path.Combine(AppDirectory, ".write_test.tmp");
-                File.WriteAllText(testFile, "test");
-                File.Delete(testFile);
-                return true;
+                yield return Path.Combine(AppDirectory, "node.exe");
             }
-            catch { return false; }
         }
 
-        private bool EnsureElevatedForSetup()
+        private bool EnsureElevatedForTargets(IReadOnlyCollection<string> targetPaths, string messagePrefix)
         {
             try
             {
-                // Если и так можем писать — не нужно повышать
-                if (CanWriteToAppDirectory()) return true;
+                if (targetPaths == null || targetPaths.Count == 0)
+                    return true;
 
-                if (!IsRunningAsAdministrator())
+                if (!InstallAccessHelper.NeedsElevationForWrite(targetPaths, out string reason, "изменения файлов рядом с программой"))
+                    return true;
+
+                if (!InstallAccessHelper.IsRunningAsAdministrator())
                 {
-                    var exe = Process.GetCurrentProcess().MainModule?.FileName;
-                    if (!string.IsNullOrWhiteSpace(exe))
+                    Log("W", reason);
+                    ShowErrorMessageBox(
+                        "Требуются права администратора",
+                        $"{messagePrefix}\nПапка: {AppDirectory}\n\n{reason}\n\nСейчас будет запрошен запуск от имени администратора.");
+
+                    if (!InstallAccessHelper.TryRestartElevatedForSetup(out var elevateError))
                     {
-                        try
-                        {
-                            var psi = new ProcessStartInfo
-                            {
-                                FileName = exe,
-                                Arguments = "--setup",
-                                UseShellExecute = true,
-                                Verb = "runas"
-                            };
-                            Process.Start(psi);
-                        }
-                        catch (Exception ex)
-                        {
-                            Log("E", "Запрос прав администратора отклонён", ex);
-                            ShowErrorMessageBox("Требуются права администратора", "Для установки в Program Files нужны права администратора. Разрешите запрос UAC и запустите установку снова.");
-                        }
+                        Log("E", "Не удалось запросить повышение прав", elevateError);
+                        ShowErrorMessageBox(
+                            "Запрос администратора отклонён",
+                            "Не удалось запустить установку от имени администратора. Разрешите запрос UAC и повторите попытку.");
                     }
+
                     return false;
                 }
 
-                ShowErrorMessageBox("Ошибка доступа", "Нет прав на запись в папку приложения. Запустите установку от имени администратора.");
+                ShowErrorMessageBox(
+                    "Ошибка доступа",
+                    $"Приложение уже запущено от имени администратора, но запись в папку всё равно недоступна:\n{AppDirectory}\n\n{reason}\n\nПроверьте атрибуты папки и ограничения безопасности.");
                 return false;
             }
             catch (Exception ex)
@@ -328,14 +322,27 @@ private async Task StartDownloadLoop()
             Log("E", "Ошибка при проверке JS runtime", ex);
         }
 
-        // 1. ПРОВЕРКА: какие файлы отсутствуют
-        var missingFiles = _filesToDownload
+        // 1. ПРОВЕРКА: какие файлы отсутствуют или требуют обновления
+        var pendingFiles = _filesToDownload
             .Where(f => !File.Exists(f.Path))
             .Select(f => (f.Name, f.Url, f.Path))
             .ToList();
 
-        // Если всё уже скачано
-        if (missingFiles.Count == 0) 
+        var ytUpdateTarget = await GetPendingYtDlpUpdateTargetAsync(_cts.Token);
+        if (ytUpdateTarget.HasValue && !pendingFiles.Any(f => string.Equals(f.Path, ytUpdateTarget.Value.Path, StringComparison.OrdinalIgnoreCase)))
+        {
+            pendingFiles.Insert(0, ytUpdateTarget.Value);
+        }
+
+        if (!EnsureElevatedForTargets(pendingFiles.Select(f => f.Path).ToList(), "Для установки или обновления компонентов нужен доступ к папке рядом с программой."))
+        {
+            _canCloseWindow = true;
+            await Dispatcher.UIThread.InvokeAsync(() => Close());
+            return;
+        }
+
+        // Если всё уже скачано и обновление не требуется
+        if (pendingFiles.Count == 0) 
         { 
             _isDownloadFinished = true;
             _canCloseWindow = true;
@@ -349,21 +356,26 @@ private async Task StartDownloadLoop()
         {
             if (HeaderTitleCtrl != null)
             {
-                HeaderTitleCtrl.Text = missingFiles.Count > 1 
-                    ? "Установка компонентов..." 
-                    : $"Установка {missingFiles[0].Name}...";
+                HeaderTitleCtrl.Text = pendingFiles.Count > 1
+                    ? "Установка компонентов..."
+                    : (string.Equals(pendingFiles[0].Name, "yt-dlp.exe", StringComparison.OrdinalIgnoreCase) && File.Exists(pendingFiles[0].Path)
+                        ? "Обновление yt-dlp..."
+                        : $"Установка {pendingFiles[0].Name}...");
             }
         });
 
         try
         {
             // 2. ЗАПУСК ЗАГРУЗКИ
-            Log("I", $"Начинаем установку компонентов: {string.Join(", ", missingFiles.Select(m => m.Name))}");
+            Log("I", $"Начинаем установку компонентов: {string.Join(", ", pendingFiles.Select(m => m.Name))}");
             await Dispatcher.UIThread.InvokeAsync(() => {
-                if (StatusTextCtrl != null) StatusTextCtrl.Text = "Начинаем установку компонентов...";
+                if (StatusTextCtrl != null) StatusTextCtrl.Text = pendingFiles.Any(f => string.Equals(f.Name, "yt-dlp.exe", StringComparison.OrdinalIgnoreCase) && File.Exists(f.Path))
+                    ? "Обновляем yt-dlp до последней версии..."
+                    : "Начинаем установку компонентов...";
             });
 
-            await RunDownload(missingFiles, _cts.Token);
+            await RunDownload(pendingFiles, _cts.Token);
+            _pendingYtDlpUpdateTarget = null;
 
             // Если дошли сюда и не было отмены — значит успех
             _isDownloadFinished = true;
@@ -514,6 +526,9 @@ private async Task StartDownloadLoop()
             }
             else
             {
+                if (File.Exists(finalExePath))
+                    PreDeleteToolIfExists(finalExePath);
+
                 // Для yt-dlp просто переименовываем из .download в .exe
                 ReplaceFileWithRetry(downloadPath, finalExePath);
                 Log("I", $"{target.Name} успешно установлен.");
@@ -689,6 +704,56 @@ private void DeleteWithRetry(string path)
     // Ждем, пока пользователь нажмет ОК и окно закроется
     await tcs.Task;
 }
+        private async Task<(string Name, string Url, string Path)?> GetPendingYtDlpUpdateTargetAsync(CancellationToken token)
+        {
+            string ytDlpPath = Path.Combine(AppDirectory, "yt-dlp.exe");
+            if (!File.Exists(ytDlpPath))
+            {
+                _pendingYtDlpUpdateTarget = null;
+                return null;
+            }
+
+            var updateCheck = await YtDlpUpdateHelper.CheckAsync(ytDlpPath, token);
+            if (!updateCheck.CheckSucceeded)
+            {
+                if (!string.IsNullOrWhiteSpace(updateCheck.Message))
+                    Log("W", $"Проверка обновления yt-dlp пропущена: {updateCheck.Message}");
+                _pendingYtDlpUpdateTarget = null;
+                return null;
+            }
+
+            if (!updateCheck.IsOutdated)
+            {
+                Log("D", updateCheck.Message);
+                _pendingYtDlpUpdateTarget = null;
+                return null;
+            }
+
+            Log("I", updateCheck.Message);
+            _pendingYtDlpUpdateTarget = ("yt-dlp.exe", string.IsNullOrWhiteSpace(updateCheck.DownloadUrl) ? YtDlpUpdateHelper.DefaultX86DownloadUrl : updateCheck.DownloadUrl, ytDlpPath);
+            return _pendingYtDlpUpdateTarget;
+        }
+
+        private void PreDeleteToolIfExists(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+
+            try
+            {
+                if (File.Exists(path))
+                {
+                    Log("W", $"Удаляем старый файл перед обновлением: {Path.GetFileName(path)}");
+                    DeleteWithRetry(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("E", $"Не удалось удалить старую версию файла: {path}", ex);
+                throw;
+            }
+        }
+
         private async Task<bool> ShowConfirmAsync(string title, string text)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

@@ -11,6 +11,7 @@
     <TargetPlatformVersion>10.0.18362.0</TargetPlatformVersion>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <AssemblyName>MarsXZ Media</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

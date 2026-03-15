@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -12,6 +12,7 @@ namespace MarsXZMedia;
 internal static class SoundService
 {
     private static readonly object _lock = new();
+    private static bool _initialized;
     private static MediaPlayer? _clickPlayer;
     private static MediaPlayer? _applyPlayer;
     private static string? _clickResolvedPath;
@@ -20,11 +21,21 @@ internal static class SoundService
     public static void AttachClickSound(Window window)
     {
         if (window == null) return;
+        EnsureInitialized();
         window.AddHandler(InputElement.PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
     }
 
-    public static void PlayClick() => Play(ref _clickPlayer, ref _clickResolvedPath, "click.mp3");
-    public static void PlayApply() => Play(ref _applyPlayer, ref _applyResolvedPath, "apply.mp3");
+    public static void PlayClick()
+    {
+        EnsureInitialized();
+        PlayMedia(ref _clickPlayer, ref _clickResolvedPath, "click");
+    }
+
+    public static void PlayApply()
+    {
+        EnsureInitialized();
+        PlayMedia(ref _applyPlayer, ref _applyResolvedPath, "apply");
+    }
 
     private static void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -61,7 +72,46 @@ internal static class SoundService
         return false;
     }
 
-    private static void Play(ref MediaPlayer? player, ref string? cachedPath, string fileName)
+    private static void EnsureInitialized()
+    {
+        if (_initialized) return;
+        lock (_lock)
+        {
+            if (_initialized) return;
+            _initialized = true;
+
+            _clickResolvedPath = ResolveSoundPath("click");
+            _applyResolvedPath = ResolveSoundPath("apply");
+
+            WarmupMedia(ref _clickPlayer, _clickResolvedPath);
+            WarmupMedia(ref _applyPlayer, _applyResolvedPath);
+        }
+    }
+
+    private static void WarmupMedia(ref MediaPlayer? player, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return;
+
+        try
+        {
+            player = new MediaPlayer
+            {
+                AudioCategory = MediaPlayerAudioCategory.SoundEffects,
+                IsLoopingEnabled = false,
+                Volume = 1.0,
+                AutoPlay = false
+            };
+            var uri = new Uri(Path.GetFullPath(path), UriKind.Absolute);
+            player.Source = MediaSource.CreateFromUri(uri);
+        }
+        catch (Exception ex)
+        {
+            LogService.Log("W", $"Не удалось подготовить звук: {path}", "Sound", ex);
+        }
+    }
+
+    private static void PlayMedia(ref MediaPlayer? player, ref string? cachedPath, string baseName)
     {
         if (!OperatingSystem.IsWindows()) return;
 
@@ -72,29 +122,20 @@ internal static class SoundService
                 var path = cachedPath;
                 if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                 {
-                    path = ResolveSoundPath(fileName);
+                    path = ResolveSoundPath(baseName);
                     cachedPath = path;
                 }
 
                 if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                 {
-                    LogService.Log("W", $"Звук не найден: {fileName}", "Sound");
+                    LogService.Log("W", $"Звук не найден: {baseName}", "Sound");
                     return;
                 }
 
                 if (player == null)
-                {
-                    player = new MediaPlayer
-                    {
-                        AudioCategory = MediaPlayerAudioCategory.SoundEffects,
-                        IsLoopingEnabled = false,
-                        Volume = 1.0
-                    };
-                }
-
-                // Обновляем Source каждый раз, чтобы не залипать на невалидном источнике.
-                var uri = new Uri(Path.GetFullPath(path), UriKind.Absolute);
-                player.Source = MediaSource.CreateFromUri(uri);
+                    WarmupMedia(ref player, path);
+                if (player == null)
+                    return;
 
                 try { player.Pause(); } catch { }
                 try { player.PlaybackSession.Position = TimeSpan.Zero; } catch { }
@@ -103,32 +144,35 @@ internal static class SoundService
         }
         catch (Exception ex)
         {
-            LogService.Log("E", $"Ошибка воспроизведения звука {fileName}", "Sound", ex);
+            LogService.Log("E", $"Ошибка воспроизведения звука {baseName}", "Sound", ex);
         }
     }
 
-    private static string? ResolveSoundPath(string fileName)
+    private static string? ResolveSoundPath(string baseName)
     {
         var baseDir = AppContext.BaseDirectory;
         var currentDir = Environment.CurrentDirectory;
 
         var candidates = new[]
         {
-            Path.Combine(baseDir, "Assets", "Sounds", fileName),
-            Path.Combine(baseDir, "Sounds", fileName),
-            Path.Combine(baseDir, fileName),
-            Path.Combine(currentDir, "Assets", "Sounds", fileName),
-            Path.Combine(currentDir, "Sounds", fileName),
-            Path.Combine(currentDir, fileName)
+            Path.Combine(baseDir, "Assets", "Sounds", baseName + ".wav"),
+            Path.Combine(baseDir, "Assets", "Sounds", baseName + ".mp3"),
+            Path.Combine(baseDir, "Sounds", baseName + ".wav"),
+            Path.Combine(baseDir, "Sounds", baseName + ".mp3"),
+            Path.Combine(baseDir, baseName + ".wav"),
+            Path.Combine(baseDir, baseName + ".mp3"),
+            Path.Combine(currentDir, "Assets", "Sounds", baseName + ".wav"),
+            Path.Combine(currentDir, "Assets", "Sounds", baseName + ".mp3"),
+            Path.Combine(currentDir, "Sounds", baseName + ".wav"),
+            Path.Combine(currentDir, "Sounds", baseName + ".mp3"),
+            Path.Combine(currentDir, baseName + ".wav"),
+            Path.Combine(currentDir, baseName + ".mp3")
         };
 
         foreach (var candidate in candidates)
         {
             if (File.Exists(candidate))
-            {
-                LogService.Log("D", $"Найден звук {fileName}: {candidate}", "Sound");
                 return candidate;
-            }
         }
 
         return null;

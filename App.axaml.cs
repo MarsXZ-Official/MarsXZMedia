@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using System;
 using System.IO;
 using System.Diagnostics;
+using System.Threading;
 
 namespace MarsXZMedia;
 
@@ -30,7 +31,22 @@ public partial class App : Application
                            File.Exists(Path.Combine(appDir, "ffmpeg.exe")) &&
                            IsJsRuntimeAvailable();
 
-            if (!toolsOk)
+            bool ytDlpNeedsUpdate = false;
+            if (toolsOk)
+            {
+                try
+                {
+                    var updateCheck = YtDlpUpdateHelper.CheckAsync(Path.Combine(appDir, "yt-dlp.exe"), CancellationToken.None)
+                        .GetAwaiter().GetResult();
+                    ytDlpNeedsUpdate = updateCheck.IsOutdated;
+                }
+                catch
+                {
+                    ytDlpNeedsUpdate = false;
+                }
+            }
+
+            if (!toolsOk || ytDlpNeedsUpdate)
             {
                 // НЕ показываем ошибку — сразу открываем SetupWindow
                 var setupWin = new SetupWindow();

@@ -5,9 +5,9 @@
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.Resources>
-        <FontFamily x:Key="McFontBold">avares://MarsXZMedia/Assets/Fonts/Monocraft-Bold.ttf#Monocraft</FontFamily>
-        <FontFamily x:Key="McFontRegular">avares://MarsXZMedia/Assets/Fonts/Monocraft.ttf#Monocraft</FontFamily>
-        <FontFamily x:Key="McFont">avares://MarsXZMedia/Assets/Fonts/Monocraft.ttf#Monocraft</FontFamily>
+        <FontFamily x:Key="McFontBold">avares://MarsXZ Media/Assets/Fonts/Monocraft-Bold.ttf#Monocraft</FontFamily>
+        <FontFamily x:Key="McFontRegular">avares://MarsXZ Media/Assets/Fonts/Monocraft.ttf#Monocraft</FontFamily>
+        <FontFamily x:Key="McFont">avares://MarsXZ Media/Assets/Fonts/Monocraft.ttf#Monocraft</FontFamily>
         <LinearGradientBrush x:Key="AppBg" StartPoint="0,0" EndPoint="0,1">
             <GradientStop Color="#F5FBF2" Offset="0.0"/>
             <GradientStop Color="#E8F6E2" Offset="0.45"/>
