@@ -81,7 +81,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="58dp"
                     android:gravity="center"
-                    android:text="MarsXZ Media v1.1.0"
+                    android:text="MarsXZ Media v1.2.0"
                     android:textColor="#000000"
                     android:textSize="22sp"
                     android:textStyle="bold" />

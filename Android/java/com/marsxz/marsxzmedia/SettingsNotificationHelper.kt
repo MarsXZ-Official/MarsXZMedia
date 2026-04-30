@@ -8,8 +8,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 
 object SettingsNotificationHelper {
-    private const val CHANNEL_ID = "settings_changes_high_v1"
-    private const val CHANNEL_NAME = "Изменения настроек"
+    private const val CHANNEL_ID = "settings_v15"
+    private const val CHANNEL_NAME = "Настройки MarsXZ Media"
     private const val NOTIFICATION_ID = 9101
 
     fun ensureChannel(context: Context) {
@@ -22,7 +22,7 @@ object SettingsNotificationHelper {
                     CHANNEL_NAME,
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {
-                    description = "Уведомления об изменении настроек"
+                    description = "Уведомления об изменении настроек (звук, окна)"
                     enableVibration(true)
                     setShowBadge(true)
                 }
@@ -39,6 +39,7 @@ object SettingsNotificationHelper {
             .setContentTitle("Настройки")
             .setContentText("Настройки изменены и сохранены")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .build()
 

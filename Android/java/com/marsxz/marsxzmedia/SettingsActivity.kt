@@ -1,9 +1,11 @@
 package com.marsxz.marsxzmedia
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -11,21 +13,14 @@ import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.Settings
 import android.view.View
-import android.widget.Button
-import android.widget.CheckBox
-import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
 import java.io.FileInputStream
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -38,6 +33,8 @@ class SettingsActivity : AppCompatActivity() {
     private var requestedManageStorage = false
 
     private data class SettingsSnapshot(
+        val fontType: String,
+        val soundTheme: String,
         val useDefaultPath: Boolean,
         val separatePaths: Boolean,
         val noSubfolders: Boolean,
@@ -53,6 +50,9 @@ class SettingsActivity : AppCompatActivity() {
     private var isUpdatingUI = false
 
     private lateinit var backButton: ImageButton
+
+    private lateinit var cbFontMonoCraft: CheckBox
+    private lateinit var cbSoundsMinecraft: CheckBox
 
     private lateinit var tvVideoPathLabel: TextView
     private lateinit var etVideoPath: EditText
@@ -134,12 +134,23 @@ class SettingsActivity : AppCompatActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val fontType = prefs.getString("font_type", "system")
+        if (fontType == "monocraft") {
+            setTheme(R.style.Theme_MarsXZMedia_Monocraft)
+        } else {
+            setTheme(R.style.Theme_MarsXZMedia)
+        }
+
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
-        UiSoundPlayer.init(this)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
 
-        prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        UiSoundPlayer.init(this)
 
         initViews()
         ensureDefaultSettings()
@@ -153,6 +164,8 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        changeMessageShown = false
+        initialSnapshot = buildCurrentSnapshot()
 
         if (requestedManageStorage) {
             requestedManageStorage = false
@@ -173,18 +186,24 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        saveAndClose()
+        // Выполняем финальное сохранение с уведомлением только при выходе
+        performFullSave()
+        super.onBackPressed()
     }
 
     override fun onPause() {
         super.onPause()
-        val days = etMaxDays.text.toString().toIntOrNull() ?: 365
-        prefs.edit().putInt("max_log_days", days).apply()
-        LogMaintenance.enforcePolicy(this)
+        // Блокируем уведомление, если это просто перезагрузка экрана для шрифта (isChangingConfigurations)
+        if (!isChangingConfigurations) {
+            performFullSave()
+        }
     }
 
     private fun initViews() {
         backButton = findViewById(R.id.backButton)
+
+        cbFontMonoCraft = findViewById(R.id.cbFontMonoCraft)
+        cbSoundsMinecraft = findViewById(R.id.cbSoundsMinecraft)
 
         tvVideoPathLabel = findViewById(R.id.tvVideoPathLabel)
         etVideoPath = findViewById(R.id.tvVideoPath)
@@ -208,6 +227,8 @@ class SettingsActivity : AppCompatActivity() {
     private fun ensureDefaultSettings() {
         val editor = prefs.edit()
 
+        if (!prefs.contains("font_type")) editor.putString("font_type", "system")
+        if (!prefs.contains("sound_theme")) editor.putString("sound_theme", "system")
         if (!prefs.contains("use_default_path")) editor.putBoolean("use_default_path", true)
         if (!prefs.contains("separate_paths")) editor.putBoolean("separate_paths", false)
         if (!prefs.contains("no_subfolders")) editor.putBoolean("no_subfolders", false)
@@ -227,6 +248,16 @@ class SettingsActivity : AppCompatActivity() {
     private fun loadSettings() {
         isUpdatingUI = true
 
+        val fontType = prefs.getString("font_type", "system")
+        val isMonoCraft = fontType == "monocraft"
+        cbFontMonoCraft.isChecked = isMonoCraft
+        cbFontMonoCraft.text = if (isMonoCraft) "Выключить шрифт MonoCraft" else "Включить шрифт MonoCraft"
+
+        val soundTheme = prefs.getString("sound_theme", "system")
+        val isMinecraft = soundTheme == "minecraft"
+        cbSoundsMinecraft.isChecked = isMinecraft
+        cbSoundsMinecraft.text = if (isMinecraft) "Выключить звук Minecraft" else "Включить звук Minecraft"
+
         cbUseDefaultPath.isChecked = prefs.getBoolean("use_default_path", true)
         cbSeparatePaths.isChecked = prefs.getBoolean("separate_paths", false)
         cbNoSubfolders.isChecked = prefs.getBoolean("no_subfolders", false)
@@ -245,63 +276,89 @@ class SettingsActivity : AppCompatActivity() {
     private fun hasChanges(): Boolean {
         val snapshot = initialSnapshot ?: return false
 
-        // Сравниваем каждое поле
-        return cbUseDefaultPath.isChecked != snapshot.useDefaultPath ||
+        val currentFont = if (cbFontMonoCraft.isChecked) "monocraft" else "system"
+        val currentSounds = if (cbSoundsMinecraft.isChecked) "minecraft" else "system"
+        val currentDays = etMaxDays.text.toString().toIntOrNull() ?: 365
+
+        return currentFont != snapshot.fontType ||
+                currentSounds != snapshot.soundTheme ||
+                cbUseDefaultPath.isChecked != snapshot.useDefaultPath ||
                 cbSeparatePaths.isChecked != snapshot.separatePaths ||
                 cbNoSubfolders.isChecked != snapshot.noSubfolders ||
                 cbDontOpenFile.isChecked != snapshot.dontOpenFile ||
                 cbDisableLogs.isChecked != snapshot.disableLogs ||
                 cbInfiniteLogs.isChecked != snapshot.infiniteLogs ||
-                etMaxDays.text.toString().toIntOrNull() != snapshot.maxLogDays
+                currentDays != snapshot.maxLogDays ||
+                (if (!cbUseDefaultPath.isChecked) normalizeUserPath(etVideoPath.text.toString()) != snapshot.videoPath else false) ||
+                (if (!cbUseDefaultPath.isChecked && cbSeparatePaths.isChecked) normalizeUserPath(etMusicPath.text.toString()) != snapshot.musicPath else false)
     }
 
     private fun setupListeners() {
         backButton.setOnClickListener {
-            // 1. Всегда играем клик в начале
-            UiSoundPlayer.playClick()
+            UiSoundPlayer.playClick(this)
+            performFullSave()
+            finish()
+        }
 
-            if (hasChanges()) {
-                // ЕСЛИ БЫЛИ ИЗМЕНЕНИЯ:
-                it.postDelayed({
-                    UiSoundPlayer.playApply() // Звук применения
-                    SettingsNotificationHelper.showSettingsSaved(this) // Уведомление
+        // Мгновенное применение шрифта с перезагрузкой, но БЕЗ уведомления
+        cbFontMonoCraft.setOnCheckedChangeListener { _, isChecked ->
+            if (isUpdatingUI) return@setOnCheckedChangeListener
+            UiSoundPlayer.playClick(this)
 
-                    it.postDelayed({
-                        saveAndClose()
-                    }, 150)
-                }, 100)
-            } else {
-                // ЕСЛИ НИЧЕГО НЕ МЕНЯЛОСЬ:
-                it.postDelayed({
-                    finish() // Просто выходим без уведомлений
-                }, 100)
+            val newFontType = if (isChecked) "monocraft" else "system"
+            val currentFont = prefs.getString("font_type", "system")
+
+            cbFontMonoCraft.text = if (isChecked) "Выключить шрифт MonoCraft" else "Включить шрифт MonoCraft"
+
+            if (newFontType != currentFont) {
+                // Ставим специальный флаг, чтобы вспомнить об изменении при выходе
+                prefs.edit()
+                    .putString("font_type", newFontType)
+                    .putBoolean("pending_settings_notification", true)
+                    .commit()
+                recreate() // Мгновенно применяем шрифт
+            }
+        }
+
+        // Мгновенное применение звуков
+        cbSoundsMinecraft.setOnCheckedChangeListener { _, isChecked ->
+            if (isUpdatingUI) return@setOnCheckedChangeListener
+            UiSoundPlayer.playClick(this)
+
+            val newTheme = if (isChecked) "minecraft" else "system"
+            val currentTheme = prefs.getString("sound_theme", "system")
+
+            cbSoundsMinecraft.text = if (isChecked) "Выключить звук Minecraft" else "Включить звук Minecraft"
+
+            if (newTheme != currentTheme) {
+                // Ставим специальный флаг
+                prefs.edit()
+                    .putString("sound_theme", newTheme)
+                    .putBoolean("pending_settings_notification", true)
+                    .apply()
             }
         }
 
         cbUseDefaultPath.setOnCheckedChangeListener { _, isChecked ->
-            UiSoundPlayer.playClick() // Добавляем звук
             if (isUpdatingUI) return@setOnCheckedChangeListener
+            UiSoundPlayer.playClick(this)
+            prefs.edit().putBoolean("use_default_path", isChecked).apply()
 
             if (isChecked) {
-                prefs.edit().putBoolean("use_default_path", true).apply()
-                updateUI()
-                return@setOnCheckedChangeListener
-            }
-
-            ensureCustomPathDefaults()
-
-            if (hasCustomPathAccess()) {
-                prefs.edit().putBoolean("use_default_path", false).apply()
-                Toast.makeText(this, "Разрешение предоставлено", Toast.LENGTH_SHORT).show()
                 updateUI()
             } else {
-                requestCustomPathAccess()
+                ensureCustomPathDefaults()
+                if (hasCustomPathAccess()) {
+                    updateUI()
+                } else {
+                    requestCustomPathAccess()
+                }
             }
         }
 
         cbSeparatePaths.setOnCheckedChangeListener { _, isChecked ->
-            UiSoundPlayer.playClick() // Добавляем звук
             if (isUpdatingUI) return@setOnCheckedChangeListener
+            UiSoundPlayer.playClick(this)
             prefs.edit().putBoolean("separate_paths", isChecked).apply()
 
             if (!isChecked) {
@@ -312,117 +369,123 @@ class SettingsActivity : AppCompatActivity() {
                     .apply()
                 etMusicPath.setText(currentVideo)
             }
-
             updateUI()
         }
 
         btnSelectVideoPath.setOnClickListener {
-            UiSoundPlayer.playClick()
+            UiSoundPlayer.playClick(this)
             selectVideoDirLauncher.launch(null)
         }
 
         btnSelectMusicPath.setOnClickListener {
-            UiSoundPlayer.playClick()
+            UiSoundPlayer.playClick(this)
             selectMusicDirLauncher.launch(null)
         }
 
         btnExportLogs.setOnClickListener {
-            UiSoundPlayer.playClick() // ДОБАВИТЬ ЗВУК
+            UiSoundPlayer.playClick(this)
             exportLogs()
         }
 
         cbNoSubfolders.setOnCheckedChangeListener { _, checked ->
-            UiSoundPlayer.playClick() // ДОБАВИТЬ ЗВУК
+            if (isUpdatingUI) return@setOnCheckedChangeListener
+            UiSoundPlayer.playClick(this)
             prefs.edit().putBoolean("no_subfolders", checked).apply()
         }
 
         cbDontOpenFile.setOnCheckedChangeListener { _, checked ->
-            UiSoundPlayer.playClick() // ДОБАВИТЬ ЗВУК
+            if (isUpdatingUI) return@setOnCheckedChangeListener
+            UiSoundPlayer.playClick(this)
             prefs.edit().putBoolean("dont_open_file", checked).apply()
         }
 
         cbDisableLogs.setOnCheckedChangeListener { _, checked ->
-            UiSoundPlayer.playClick() // Добавляем звук
+            if (isUpdatingUI) return@setOnCheckedChangeListener
+            UiSoundPlayer.playClick(this)
             prefs.edit().putBoolean("disable_logs", checked).apply()
             LogMaintenance.enforcePolicy(this)
             updateUI()
         }
 
         cbInfiniteLogs.setOnCheckedChangeListener { _, checked ->
-            UiSoundPlayer.playClick() // Добавляем звук
+            if (isUpdatingUI) return@setOnCheckedChangeListener
+            UiSoundPlayer.playClick(this)
             prefs.edit().putBoolean("infinite_logs", checked).apply()
-
-            if (!checked) {
-                val current = etMaxDays.text.toString().toIntOrNull()
-                if (current == null || current <= 0) {
-                    etMaxDays.setText("365")
-                    prefs.edit().putInt("max_log_days", 365).apply()
-                }
-            }
-
             LogMaintenance.enforcePolicy(this)
             updateUI()
         }
+    }
 
-        etVideoPath.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus && !cbUseDefaultPath.isChecked) {
-                applyManualPathFromField(isMusic = false, askCreate = true)
-            }
-        }
+    private fun performFullSave() {
+        val days = etMaxDays.text.toString().toIntOrNull() ?: 365
 
-        etMusicPath.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus && !cbUseDefaultPath.isChecked && cbSeparatePaths.isChecked) {
-                applyManualPathFromField(isMusic = true, askCreate = true)
+        val hasUnsavedChanges = hasChanges()
+        val hasPendingNotification = prefs.getBoolean("pending_settings_notification", false)
+
+        // Если есть изменения ИЛИ висит флаг от смены темы/звука
+        if (hasUnsavedChanges || hasPendingNotification) {
+            val editor = prefs.edit()
+
+            editor.putString("font_type", if (cbFontMonoCraft.isChecked) "monocraft" else "system")
+            editor.putString("sound_theme", if (cbSoundsMinecraft.isChecked) "minecraft" else "system")
+            editor.putBoolean("use_default_path", cbUseDefaultPath.isChecked)
+            editor.putBoolean("separate_paths", cbSeparatePaths.isChecked)
+            editor.putBoolean("no_subfolders", cbNoSubfolders.isChecked)
+            editor.putBoolean("dont_open_file", cbDontOpenFile.isChecked)
+            editor.putBoolean("disable_logs", cbDisableLogs.isChecked)
+            editor.putBoolean("infinite_logs", cbInfiniteLogs.isChecked)
+            editor.putInt("max_log_days", days)
+
+            if (!cbUseDefaultPath.isChecked) {
+                val vPath = normalizeUserPath(etVideoPath.text.toString())
+                editor.putString("video_path", vPath).putString("video_path_last_valid", vPath)
+                if (cbSeparatePaths.isChecked) {
+                    val mPath = normalizeUserPath(etMusicPath.text.toString())
+                    editor.putString("music_path", mPath).putString("music_path_last_valid", mPath)
+                } else {
+                    editor.putString("music_path", vPath).putString("music_path_last_valid", vPath)
+                }
             }
+
+            // Очищаем флаг уведомления
+            editor.putBoolean("pending_settings_notification", false)
+            editor.apply()
+
+            // Воспроизводим звук и показываем уведомление ТОЛЬКО ОДИН РАЗ при выходе
+            if (!changeMessageShown) {
+                changeMessageShown = true
+                UiSoundPlayer.playApply(this)
+                SettingsNotificationHelper.showSettingsSaved(this)
+            }
+            initialSnapshot = buildCurrentSnapshot()
         }
+        LogMaintenance.enforcePolicy(this)
     }
 
     private fun hasCustomPathAccess(): Boolean {
         return when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
-                Environment.isExternalStorageManager()
-            }
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-                ) == PackageManager.PERMISSION_GRANTED
-            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> Environment.isExternalStorageManager()
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
             else -> true
         }
     }
 
     private fun requestCustomPathAccess() {
-        when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
-                requestedManageStorage = true
-                try {
-                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                        data = Uri.parse("package:$packageName")
-                    }
-                    startActivity(intent)
-                } catch (_: ActivityNotFoundException) {
-                    try {
-                        startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-                    } catch (_: Exception) {
-                        revertToDefaultPath("Не удалось открыть настройки доступа к файлам")
-                    }
-                }
-            }
-
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-                requestWriteStorageLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            requestedManageStorage = true
+            try {
+                startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply { data = Uri.parse("package:$packageName") })
+            } catch (_: Exception) { revertToDefaultPath("Ошибка доступа") }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestWriteStorageLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
     }
 
     private fun revertToDefaultPath(message: String) {
         prefs.edit().putBoolean("use_default_path", true).apply()
-
         isUpdatingUI = true
         cbUseDefaultPath.isChecked = true
         isUpdatingUI = false
-
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         updateUI()
     }
@@ -434,13 +497,11 @@ class SettingsActivity : AppCompatActivity() {
         if (useDefault) {
             etVideoPath.setText("Используется путь по умолчанию")
             etMusicPath.setText("Используется путь по умолчанию")
-
             etVideoPath.isEnabled = false
             etMusicPath.isEnabled = false
             btnSelectVideoPath.isEnabled = false
             btnSelectMusicPath.isEnabled = false
             cbSeparatePaths.isEnabled = false
-
             if (separate) {
                 isUpdatingUI = true
                 cbSeparatePaths.isChecked = false
@@ -449,13 +510,10 @@ class SettingsActivity : AppCompatActivity() {
             }
         } else {
             ensureCustomPathDefaults()
-
             val videoPath = prefs.getString("video_path", ROOT_PATH) ?: ROOT_PATH
             val musicPath = prefs.getString("music_path", videoPath) ?: videoPath
-
             etVideoPath.setText(videoPath)
             etMusicPath.setText(musicPath)
-
             etVideoPath.isEnabled = true
             etMusicPath.isEnabled = separate
             btnSelectVideoPath.isEnabled = true
@@ -463,222 +521,75 @@ class SettingsActivity : AppCompatActivity() {
             btnSelectMusicPath.isEnabled = separate
         }
 
-        if (cbSeparatePaths.isChecked && !useDefault) {
-            tvVideoPathLabel.text = "Путь к Video:"
-            layoutMusicPath.visibility = View.VISIBLE
-        } else {
-            tvVideoPathLabel.text = "Путь к Video и Audio:"
-            layoutMusicPath.visibility = View.GONE
-        }
+        tvVideoPathLabel.text = if (separate && !useDefault) "Путь к Video:" else "Путь к Video и Audio:"
+        layoutMusicPath.visibility = if (separate && !useDefault) View.VISIBLE else View.GONE
 
         if (cbDisableLogs.isChecked) {
-            btnExportLogs.isEnabled = true
             etMaxDays.isEnabled = false
             cbInfiniteLogs.isEnabled = false
             tvErrorInfo.visibility = View.VISIBLE
-            tvErrorInfo.text = "Логи отключены. Новые записи не будут создаваться."
+            tvErrorInfo.text = "Логи отключены."
             tvErrorInfo.setTextColor(android.graphics.Color.GRAY)
         } else {
-            btnExportLogs.isEnabled = true
             cbInfiniteLogs.isEnabled = true
             etMaxDays.isEnabled = !cbInfiniteLogs.isChecked
-
+            tvErrorInfo.visibility = if (cbInfiniteLogs.isChecked) View.VISIBLE else View.GONE
             if (cbInfiniteLogs.isChecked) {
-                tvErrorInfo.visibility = View.VISIBLE
-                tvErrorInfo.text = "Авто-удаление отключено (вечное хранилище)"
+                tvErrorInfo.text = "Авто-удаление отключено."
                 tvErrorInfo.setTextColor(android.graphics.Color.GRAY)
-            } else {
-                tvErrorInfo.visibility = View.GONE
             }
         }
     }
 
     private fun buildCurrentSnapshot(): SettingsSnapshot {
         return SettingsSnapshot(
+            fontType = prefs.getString("font_type", "system") ?: "system",
+            soundTheme = prefs.getString("sound_theme", "system") ?: "system",
             useDefaultPath = cbUseDefaultPath.isChecked,
             separatePaths = cbSeparatePaths.isChecked,
             noSubfolders = cbNoSubfolders.isChecked,
             dontOpenFile = cbDontOpenFile.isChecked,
             disableLogs = cbDisableLogs.isChecked,
             infiniteLogs = cbInfiniteLogs.isChecked,
-            videoPath = prefs.getString("video_path", null),
-            musicPath = prefs.getString("music_path", null), // Добавлена запятая
-            maxLogDays = prefs.getInt("max_log_days", 365)  // Удален дубликат
+            maxLogDays = prefs.getInt("max_log_days", 365),
+            videoPath = if (!cbUseDefaultPath.isChecked) normalizeUserPath(etVideoPath.text.toString()) else prefs.getString("video_path", null),
+            musicPath = if (!cbUseDefaultPath.isChecked && cbSeparatePaths.isChecked) normalizeUserPath(etMusicPath.text.toString()) else prefs.getString("music_path", null)
         )
     }
 
-    private fun notifyIfSettingsChanged() {
-        if (changeMessageShown) return
-
-        val before = initialSnapshot ?: return
-        val after = buildCurrentSnapshot()
-
-        if (before != after) {
-            changeMessageShown = true
-            UiSoundPlayer.playApply()
-            SettingsNotificationHelper.showSettingsSaved(this)
+    private fun ensureCustomPathDefaults() {
+        if (prefs.getString("video_path", null).isNullOrBlank()) {
+            prefs.edit().putString("video_path", ROOT_PATH).putString("video_path_last_valid", ROOT_PATH).apply()
+        }
+        if (prefs.getString("music_path", null).isNullOrBlank()) {
+            prefs.edit().putString("music_path", ROOT_PATH).putString("music_path_last_valid", ROOT_PATH).apply()
         }
     }
 
-    private fun saveAndClose() {
-        applyManualPathFromField(isMusic = false, askCreate = false)
-        if (cbSeparatePaths.isChecked && !cbUseDefaultPath.isChecked) {
-            applyManualPathFromField(isMusic = true, askCreate = false)
-        }
-
-        val days = etMaxDays.text.toString().toIntOrNull() ?: 365
-        prefs.edit().putInt("max_log_days", days).apply()
-        LogMaintenance.enforcePolicy(this)
-
-        notifyIfSettingsChanged()
-        finish()
-    }
-
-    private fun applyManualPathFromField(isMusic: Boolean, askCreate: Boolean): Boolean {
-        val field = if (isMusic) etMusicPath else etVideoPath
-        val rawInput = field.text?.toString().orEmpty()
-
-        return validateOrPrepareFolderPath(rawInput, askCreate) { validPath ->
-            saveValidPath(isMusic, validPath)
-
-            if (!isMusic && !cbSeparatePaths.isChecked) {
-                saveValidPath(true, validPath)
-                etMusicPath.setText(validPath)
-            }
-
-            if (isMusic) {
-                val videoPath = prefs.getString("video_path", ROOT_PATH) ?: ROOT_PATH
-                if (normalizeUserPath(videoPath) == normalizeUserPath(validPath)) {
-                    isUpdatingUI = true
-                    cbSeparatePaths.isChecked = false
-                    prefs.edit().putBoolean("separate_paths", false).apply()
-                    isUpdatingUI = false
-                    updateUI()
-                }
-            }
-        }
-    }
-
-    private fun validateOrPrepareFolderPath(
-        rawInput: String,
-        askCreate: Boolean,
-        onReady: (String) -> Unit
-    ): Boolean {
-        val normalized = normalizeUserPath(rawInput)
-        val folder = File(normalized)
-
-        if (folder.exists() && folder.isDirectory) {
-            onReady(normalized)
-            return true
-        }
-
-        if (!askCreate) {
-            return false
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Папка не найдена")
-            .setMessage("Создать папку?\n$normalized")
-            .setPositiveButton("Создать") { _, _ ->
-                if (folder.mkdirs() || folder.exists()) {
-                    onReady(normalized)
-                    UiSoundPlayer.playApply()
-                    SettingsNotificationHelper.showSettingsSaved(this)
-                } else {
-                    showSettingsError("Не удалось создать папку")
-                }
-            }
-            .setNegativeButton("Отмена") { _, _ ->
-                showSettingsError("Путь не применён")
-                restorePreviousPath(rawInput == etMusicPath.text?.toString(), if (rawInput == etMusicPath.text?.toString()) etMusicPath else etVideoPath)
-            }
-            .show()
-
-        return false
+    private fun normalizeUserPath(raw: String?): String {
+        val value = raw?.trim() ?: return ROOT_PATH
+        if (value == "Используется путь по умолчанию") return ROOT_PATH
+        return if (value.startsWith("/")) value else "$ROOT_PATH$value"
     }
 
     private fun savePickedFolder(uri: Uri, isMusic: Boolean) {
-        contentResolver.takePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        )
-
+        contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         val absolute = treeUriToAbsolutePath(uri) ?: ROOT_PATH
-
-        prefs.edit()
-            .putString(if (isMusic) "music_path_uri" else "video_path_uri", uri.toString())
-            .putBoolean("use_default_path", false)
-            .apply()
+        prefs.edit().putString(if (isMusic) "music_path_uri" else "video_path_uri", uri.toString()).putBoolean("use_default_path", false).apply()
 
         isUpdatingUI = true
         cbUseDefaultPath.isChecked = false
         isUpdatingUI = false
 
         saveValidPath(isMusic, absolute)
-
-        if (!isMusic && !cbSeparatePaths.isChecked) {
-            saveValidPath(true, absolute)
-        }
-
+        if (!isMusic && !cbSeparatePaths.isChecked) saveValidPath(true, absolute)
         updateUI()
     }
 
     private fun saveValidPath(isMusic: Boolean, absolutePath: String) {
         val normalized = normalizeUserPath(absolutePath)
-        val pathKey = if (isMusic) "music_path" else "video_path"
-        val lastValidKey = if (isMusic) "music_path_last_valid" else "video_path_last_valid"
-
-        prefs.edit()
-            .putString(pathKey, normalized)
-            .putString(lastValidKey, normalized)
-            .apply()
-
-        if (isMusic) {
-            etMusicPath.setText(normalized)
-        } else {
-            etVideoPath.setText(normalized)
-        }
-    }
-
-    private fun ensureCustomPathDefaults() {
-        val currentVideo = prefs.getString("video_path", null)
-        val currentMusic = prefs.getString("music_path", null)
-
-        val editor = prefs.edit()
-        if (currentVideo.isNullOrBlank()) {
-            editor.putString("video_path", ROOT_PATH)
-            editor.putString("video_path_last_valid", ROOT_PATH)
-        }
-        if (currentMusic.isNullOrBlank()) {
-            editor.putString("music_path", ROOT_PATH)
-            editor.putString("music_path_last_valid", ROOT_PATH)
-        }
-        editor.apply()
-    }
-
-    private fun restorePreviousPath(isMusic: Boolean, field: EditText) {
-        val lastValidKey = if (isMusic) "music_path_last_valid" else "video_path_last_valid"
-        val fallback = prefs.getString(lastValidKey, ROOT_PATH) ?: ROOT_PATH
-        field.setText(fallback)
-    }
-
-    private fun findCombinedLogFile(): File? {
-        val file = LogMaintenance.combinedLogFile(this)
-        return file.takeIf { it.exists() && it.isFile }
-    }
-
-    private fun exportLogs() {
-        val logFile = findCombinedLogFile()
-
-        if (logFile == null) {
-            tvErrorInfo.visibility = View.VISIBLE
-            tvErrorInfo.text = "Файл combined_app.log не найден"
-            tvErrorInfo.setTextColor(android.graphics.Color.RED)
-            return
-        }
-
-        pendingExportLogFile = logFile
-        exportLogLauncher.launch("combined_app.log")
+        prefs.edit().putString(if (isMusic) "music_path" else "video_path", normalized).putString(if (isMusic) "music_path_last_valid" else "video_path_last_valid", normalized).apply()
+        if (isMusic) etMusicPath.setText(normalized) else etVideoPath.setText(normalized)
     }
 
     private fun treeUriToAbsolutePath(uri: Uri): String? {
@@ -687,56 +598,14 @@ class SettingsActivity : AppCompatActivity() {
             if (docId.startsWith("primary:")) {
                 val relative = docId.removePrefix("primary:").trim('/')
                 if (relative.isBlank()) ROOT_PATH else "$ROOT_PATH$relative"
-            } else {
-                null
-            }
-        } catch (_: Exception) {
-            null
-        }
+            } else null
+        } catch (_: Exception) { null }
     }
 
-    private fun normalizeUserPath(raw: String?): String {
-        val value = raw?.trim().orEmpty()
-        if (value.isBlank()) return ROOT_PATH
-
-        val cleaned = value.replace('\\', '/').trim()
-
-        return when {
-            cleaned.startsWith("/storage/emulated/0/") -> cleaned
-            cleaned == "/storage/emulated/0" -> ROOT_PATH
-            cleaned.startsWith("/sdcard/") -> cleaned.replaceFirst("/sdcard", "/storage/emulated/0")
-            cleaned == "/sdcard" -> ROOT_PATH
-            cleaned.startsWith("/") -> cleaned
-            else -> "$ROOT_PATH${cleaned.trimStart('/')}"
-        }
-    }
-
-    private fun hasManageAllFilesAccess(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
-    }
-
-    private fun openManageFilesAccessSettings() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-
-        requestedManageStorage = true
-
-        try {
-            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                data = Uri.parse("package:$packageName")
-            }
-            startActivity(intent)
-        } catch (_: ActivityNotFoundException) {
-            try {
-                startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-            } catch (_: Exception) {
-                Toast.makeText(this, "Не удалось открыть настройки доступа к файлам", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun showSettingsError(message: String) {
-        tvErrorInfo.visibility = View.VISIBLE
-        tvErrorInfo.text = message
-        tvErrorInfo.setTextColor(android.graphics.Color.RED)
+    private fun exportLogs() {
+        val logFile = LogMaintenance.combinedLogFile(this)
+        if (!logFile.exists()) return
+        pendingExportLogFile = logFile
+        exportLogLauncher.launch("combined_app.log")
     }
 }

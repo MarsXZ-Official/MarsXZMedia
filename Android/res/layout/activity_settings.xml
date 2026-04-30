@@ -6,7 +6,6 @@
     android:layout_height="match_parent"
     android:background="#FFFFFF">
 
-    <!-- Верхняя панель -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBar"
         android:layout_width="0dp"
@@ -14,8 +13,6 @@
         android:background="#FFFFFF"
         android:paddingStart="12dp"
         android:paddingEnd="4dp"
-        android:elevation="0dp"
-        android:stateListAnimator="@null"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -28,9 +25,8 @@
             android:textColor="#111111"
             android:textSize="17sp"
             android:textStyle="bold"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="12dp"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -38,11 +34,9 @@
 
         <ImageButton
             android:id="@+id/backButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="4dp"
-            android:background="@android:color/transparent"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Назад"
             android:scaleType="centerInside"
             android:src="@drawable/ic_close"
@@ -78,33 +72,72 @@
             android:orientation="vertical">
 
             <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Внешний вид"
+                android:textColor="#808080"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="12dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_gravity="center"
+                android:layout_marginBottom="16dp">
+
+                <CheckBox
+                    android:id="@+id/cbFontMonoCraft"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Включить шрифт MonoCraft"
+                    android:layout_marginBottom="8dp" />
+
+                <CheckBox
+                    android:id="@+id/cbSoundsMinecraft"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Включить звук Minecraft" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
                 android:id="@+id/tvVideoPathLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Путь к Video и Audio:"
-                android:textStyle="bold" />
+                android:textColor="#808080"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:layout_marginBottom="8dp">
-
                 <EditText
                     android:id="@+id/tvVideoPath"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:padding="8dp"
-                    android:background="#EEE"
-                    android:text="Используется путь по умолчанию"
+                    android:padding="10dp"
+                    android:background="#F0F0F0"
+                    android:textSize="14sp"
                     android:singleLine="true"
-                    android:inputType="textUri"/>
-
+                    android:inputType="textUri"
+                    android:focusable="false"
+                    android:clickable="false"/>
                 <Button
                     android:id="@+id/btnSelectVideoPath"
-                    android:layout_width="wrap_content"
+                    android:layout_width="50dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
                     android:text="..." />
             </LinearLayout>
 
@@ -114,33 +147,35 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Путь к Audio:"
-                    android:textStyle="bold" />
-
+                    android:textColor="#808080"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="4dp" />
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
                     <EditText
                         android:id="@+id/tvMusicPath"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:padding="8dp"
-                        android:background="#EEE"
-                        android:text="Используется путь по умолчанию"
+                        android:padding="10dp"
+                        android:background="#F0F0F0"
+                        android:textSize="14sp"
                         android:singleLine="true"
-                        android:inputType="textUri"/>
-
+                        android:inputType="textUri"
+                        android:focusable="false"
+                        android:clickable="false"/>
                     <Button
                         android:id="@+id/btnSelectMusicPath"
-                        android:layout_width="wrap_content"
+                        android:layout_width="50dp"
                         android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
                         android:text="..." />
                 </LinearLayout>
             </LinearLayout>
@@ -172,23 +207,26 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="#CCC"
+                android:background="#E0E0E0"
                 android:layout_marginVertical="16dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Логирование"
+                android:textColor="#808080"
                 android:textStyle="bold"
                 android:gravity="center"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginBottom="12dp" />
 
             <Button
                 android:id="@+id/btnExportLogs"
-                android:layout_width="wrap_content"
+                android:layout_width="180dp"
                 android:layout_height="wrap_content"
-                android:text="Экспорт логов"
-                android:layout_gravity="center" />
+                android:text="ЭКСПОРТ ЛОГОВ"
+                android:textStyle="bold"
+                android:layout_gravity="center"
+                android:layout_marginBottom="8dp"/>
 
             <CheckBox
                 android:id="@+id/cbDisableLogs"
@@ -197,23 +235,33 @@
                 android:text="Не создавать логи"
                 android:layout_gravity="center" />
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Авто-удаление логов:"
+                android:textColor="#808080"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp" />
+
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:layout_gravity="center"
-                android:layout_marginTop="8dp">
-
+                android:layout_marginBottom="8dp">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Хранить (дней): " />
-
+                    android:text="Хранить (макс. дней): " />
                 <EditText
                     android:id="@+id/etMaxDays"
                     android:layout_width="60dp"
                     android:layout_height="wrap_content"
                     android:inputType="number"
+                    android:background="#F0F0F0"
+                    android:padding="8dp"
                     android:gravity="center" />
             </LinearLayout>
 
@@ -223,6 +271,16 @@
                 android:layout_height="wrap_content"
                 android:text="Безгранично"
                 android:layout_gravity="center" />
+
+            <TextView
+                android:id="@+id/tvLogInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textSize="12sp"
+                android:textColor="#888888"
+                android:text="Авто-удаление отключено (вечное хранилище)"
+                android:layout_marginTop="4dp" />
 
             <TextView
                 android:id="@+id/tvErrorInfo"

@@ -1,14 +1,20 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Базовая тема со всеми настройками, но без принудительного шрифта -->
     <style name="Base.Theme.MarsXZMedia" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="colorPrimary">@color/mc_green_bg</item>
-        <item name="android:fontFamily">@font/monocraft_font</item>
-
         <item name="android:statusBarColor">#FFFFFF</item>
         <item name="android:navigationBarColor">#FFFFFF</item>
-
         <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
         <item name="android:windowContentOverlay">@null</item>
     </style>
 
-    <style name="Theme.MarsXZMedia" parent="Base.Theme.MarsXZMedia" />
+    <!-- Тема по умолчанию (Системный шрифт) -->
+    <style name="Theme.MarsXZMedia" parent="Base.Theme.MarsXZMedia">
+        <!-- Здесь ничего не переопределяем, используется системный шрифт -->
+    </style>
+
+    <!-- Тема с шрифтом Monocraft -->
+    <style name="Theme.MarsXZMedia.Monocraft" parent="Base.Theme.MarsXZMedia">
+        <item name="android:fontFamily">@font/monocraft_font</item>
+    </style>
 </resources>

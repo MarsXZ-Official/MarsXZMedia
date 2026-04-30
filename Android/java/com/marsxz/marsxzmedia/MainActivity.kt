@@ -1,38 +1,29 @@
 package com.marsxz.marsxzmedia
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.Spinner
-import android.widget.TextView
-import android.widget.Toast
+import android.webkit.MimeTypeMap
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.google.android.material.appbar.MaterialToolbar
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.widget.doAfterTextChanged
-import java.net.URL
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
-import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowInsetsControllerCompat
-import android.view.WindowManager
+import androidx.core.widget.doAfterTextChanged
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import java.io.File
+import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
@@ -83,18 +74,24 @@ class MainActivity : AppCompatActivity() {
     private var hasResolvedVideo = false
     private var resolvedUrl: String? = null
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // Внутри onCreate, перед setContentView
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        )
+    private var currentAppliedFont: String? = null
 
-// Чтобы иконки (время, батарея) были темными на белом фоне:
+    override fun onCreate(savedInstanceState: Bundle?) {
+        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val fontType = prefs.getString("font_type", "system")
+        currentAppliedFont = fontType
+
+        if (fontType == "monocraft") {
+            setTheme(R.style.Theme_MarsXZMedia_Monocraft)
+        } else {
+            setTheme(R.style.Theme_MarsXZMedia)
+        }
+
+        super.onCreate(savedInstanceState)
+
         WindowInsetsControllerCompat(window, window.decorView).apply {
-            isAppearanceLightStatusBars = true // Темные иконки статус-бара
-            isAppearanceLightNavigationBars = true // Темные иконки навигации
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
         }
         setContentView(R.layout.activity_main)
 
@@ -120,6 +117,16 @@ class MainActivity : AppCompatActivity() {
         updateActionButtonsState()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Проверка на изменение шрифта при возвращении из настроек
+        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val fontType = prefs.getString("font_type", "system")
+        if (fontType != currentAppliedFont) {
+            recreate()
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         UiSoundPlayer.release()
@@ -131,13 +138,13 @@ class MainActivity : AppCompatActivity() {
         topToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_settings -> {
-                    UiSoundPlayer.playClick()
+                    UiSoundPlayer.playClick(this)
                     startActivity(Intent(this, SettingsActivity::class.java))
                     true
                 }
 
                 R.id.action_about -> {
-                    UiSoundPlayer.playClick()
+                    UiSoundPlayer.playClick(this)
                     startActivity(Intent(this, AboutActivity::class.java))
                     true
                 }
@@ -171,7 +178,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupBottomNavigation() {
         bottomNavigation.setOnItemSelectedListener { item ->
-            UiSoundPlayer.playClick() // ДОБАВИТЬ ЗВУК при смене вкладки
+            UiSoundPlayer.playClick(this)
             when (item.itemId) {
                 R.id.nav_home -> {
                     showHomeScreen()
@@ -377,7 +384,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupPasteButton() {
         pasteButton.setOnClickListener {
-            UiSoundPlayer.playClick()
+            UiSoundPlayer.playClick(this)
 
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = clipboard.primaryClip
@@ -398,7 +405,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupFindButton() {
         findButton.setOnClickListener {
-            UiSoundPlayer.playClick()
+            UiSoundPlayer.playClick(this)
             val url = urlBox.text.toString().trim()
             if (url.isBlank() || isSearchInProgress || isDownloadInProgress) return@setOnClickListener
 
@@ -453,13 +460,6 @@ class MainActivity : AppCompatActivity() {
                     if (downloadTypeSpinner.selectedItemPosition == 0) {
                         applyAvailableQualities(currentVideoQualities.maxOfOrNull { it.height })
                     }
-
-                    AppLog.write(
-                        this,
-                        "I",
-                        "Форматы получены: quality=${formats.qualityItems.map { it.label }}, audio=${formats.audioTracks}",
-                        "Formats"
-                    )
                 } else {
                     AppLog.write(
                         this,
@@ -487,7 +487,7 @@ class MainActivity : AppCompatActivity() {
         val value = text.trim()
         if (value.isBlank()) return true
 
-        val questionCount = value.count { it == '?' || it == '�' }
+        val questionCount = value.count { it == '?' }
         val ratio = questionCount.toDouble() / value.length.coerceAtLeast(1)
 
         return ratio > 0.25
@@ -561,7 +561,7 @@ class MainActivity : AppCompatActivity() {
                     AppLog.write(
                         this,
                         "I",
-                        "Повторный запрос через ${delayMs}мс. Возможная причина: слабый интернет, холодный старт extractor или неполная загрузка данных.",
+                        "Повторный запрос через ${delayMs}мс. Возможная причина: слабый интернет или холодный старт.",
                         "Fetch"
                     )
                     try {
@@ -579,7 +579,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupDownloadButton() {
         downloadButton.setOnClickListener {
-            UiSoundPlayer.playClick()
+            UiSoundPlayer.playClick(this)
             val url = urlBox.text.toString().trim()
             if (url.isBlank()) {
                 showInlineNotification("Ошибка", "Сначала вставьте ссылку")
@@ -600,13 +600,6 @@ class MainActivity : AppCompatActivity() {
             isDownloadInProgress = true
             updateActionButtonsState()
 
-            AppLog.write(
-                this,
-                "I",
-                "Запуск загрузки: mode=${if (isAudio) "audio" else "video"}, quality=$selectedQuality, bitrate=$selectedBitrate, track=$selectedAudioTrack",
-                "Download"
-            )
-
             Thread {
                 val result = MediaDownloadManager.download(
                     this,
@@ -626,7 +619,7 @@ class MainActivity : AppCompatActivity() {
 
                     result.onSuccess { file ->
                         AppLog.write(this, "I", "Загрузка завершена: ${file.absolutePath}", "Download")
-                        UiSoundPlayer.playApply()
+                        UiSoundPlayer.playApply(this)
                         openDownloadedFileIfAllowed(file)
                     }.onFailure { e ->
                         AppLog.write(this, "E", "Ошибка загрузки", "Download", e)
@@ -740,7 +733,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyAudioTrackLabels(tracks: List<String>) {
-        // Преобразуем технические названия в красивый формат
         val formattedTracks = tracks.map { rawTrack ->
             formatAudioTrackName(rawTrack)
         }
@@ -751,7 +743,6 @@ class MainActivity : AppCompatActivity() {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         audioSpinner.adapter = adapter
 
-        // Ищем индекс для авто-выбора "Оригинал"
         val preferredIndex = currentAudioTracks.indexOfFirst {
             it.contains("Оригинал", ignoreCase = true) || it.contains("Original", ignoreCase = true)
         }
@@ -762,37 +753,22 @@ class MainActivity : AppCompatActivity() {
         audioSpinner.visibility = if (showAudio) View.VISIBLE else View.GONE
     }
 
-    /**
-     * Вспомогательная функция для форматирования строк типа "Russian (original)" -> "Russian ▪ Оригинал"
-     */
-
     private fun formatAudioTrackName(raw: String): String {
         if (raw.isBlank()) return raw
-
-        // Регулярное выражение для поиска текста вне и внутри скобок: "Язык (Инфо)"
         val regex = Regex("""(.+?)\s*\((.+?)\)""")
         val match = regex.find(raw)
 
         return if (match != null) {
             var language = match.groupValues[1].trim()
             val extraInfo = match.groupValues[2].trim()
-
-            // 1. Обработка диалектов и письменности (например, Китайский)
             val isSimplified = extraInfo.contains("Simplified", ignoreCase = true) || extraInfo.contains("упрощ", ignoreCase = true)
             val isTraditional = extraInfo.contains("Traditional", ignoreCase = true) || extraInfo.contains("традиц", ignoreCase = true)
-
             if (isSimplified) language = "$language (Упрощенный)"
             if (isTraditional) language = "$language (Традиционный)"
-
-            // 2. Определение типа: Оригинал или Дубляж
             val isOriginal = extraInfo.contains("original", ignoreCase = true) || extraInfo.contains("оригин", ignoreCase = true)
-
-            // Если в скобках написано то же самое, что и в языке, или просто технический код — это Дубляж
             val type = if (isOriginal) "Оригинал" else "Дубляж"
-
             "$language ▪ $type"
         } else {
-            // Если скобок нет, по умолчанию считаем Оригиналом
             "$raw ▪ Оригинал"
         }
     }
