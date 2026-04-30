@@ -1,6 +1,7 @@
-﻿using Avalonia;
+﻿﻿﻿﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using System;
 using System.IO;
 using System.Diagnostics;
@@ -24,14 +25,36 @@ public partial class App : Application
             AppPaths.MigrateLegacyData();
             AppSettingsStore.ApplyToMainWindow(AppSettingsStore.Load());
 
-            string appDir = AppPaths.AppDirectory;
+            // --- ПРИМЕНЯЕМ ШРИФТ ПРИ СТАРТЕ ---
+            var app = Avalonia.Application.Current;
+            if (app != null)
+            {
+                try
+                {
+                    string asmName = typeof(App).Assembly.GetName().Name ?? "MarsXZ Media";
+                    string safeAsmName = Uri.EscapeDataString(asmName);
+                    string fontRegularUri = $"avares://{safeAsmName}/Assets/Fonts/Monocraft.ttf#Monocraft";
+                    string fontBoldUri = $"avares://{safeAsmName}/Assets/Fonts/Monocraft-Bold.ttf#Monocraft";
 
-            // Проверяем наличие критических файлов
+                    var fontRegular = MainWindow.FontChoice == "MonoCraft" 
+                        ? new FontFamily(fontRegularUri) 
+                        : FontFamily.Default;
+                    var fontBold = MainWindow.FontChoice == "MonoCraft" 
+                        ? new FontFamily(fontBoldUri) 
+                        : FontFamily.Default;
+                        
+                    app.Resources["AppFont"] = fontRegular;
+                    app.Resources["AppFontBold"] = fontBold;
+                }
+                catch { }
+            }
+
+            string appDir = AppPaths.AppDirectory;
             bool toolsOk = File.Exists(Path.Combine(appDir, "yt-dlp.exe")) &&
                            File.Exists(Path.Combine(appDir, "ffmpeg.exe")) &&
                            IsJsRuntimeAvailable();
-
             bool ytDlpNeedsUpdate = false;
+            
             if (toolsOk)
             {
                 try
@@ -48,19 +71,15 @@ public partial class App : Application
 
             if (!toolsOk || ytDlpNeedsUpdate)
             {
-                // НЕ показываем ошибку — сразу открываем SetupWindow
                 var setupWin = new SetupWindow();
                 desktop.MainWindow = setupWin;
                 setupWin.Show();
 
-                // После закрытия SetupWindow — проверяем снова
                 setupWin.Closed += (s, e) =>
                 {
-                    // Повторная проверка
                     bool nowOk = File.Exists(Path.Combine(appDir, "yt-dlp.exe")) &&
                                  File.Exists(Path.Combine(appDir, "ffmpeg.exe")) &&
                                  IsJsRuntimeAvailable();
-
                     if (nowOk)
                     {
                         var mainWin = new MainWindow();
@@ -69,7 +88,6 @@ public partial class App : Application
                     }
                     else
                     {
-                        // Если пользователь закрыл SetupWindow без установки — закрываем приложение
                         desktop.Shutdown();
                     }
                 };
@@ -77,7 +95,6 @@ public partial class App : Application
                 return;
             }
 
-            // Всё на месте — сразу главное окно
             var mainWinDirect = new MainWindow();
             desktop.MainWindow = mainWinDirect;
             mainWinDirect.Show();
@@ -89,14 +106,10 @@ public partial class App : Application
     private static bool IsJsRuntimeAvailable()
     {
         string appDir = AppPaths.AppDirectory;
-
         string nodeLocal = Path.Combine(appDir, "node.exe");
         string denoLocal = Path.Combine(appDir, "deno.exe");
-
         if (File.Exists(nodeLocal) || File.Exists(denoLocal))
             return true;
-
-        // Проверка в PATH (fallback)
         try
         {
             var psi = new ProcessStartInfo

@@ -11,6 +11,14 @@ namespace MarsXZMedia;
 
 internal static class SoundService
 {
+    public static string CurrentTheme { get; private set; } = "None";
+
+    public static void ApplyTheme(string theme)
+    {
+        CurrentTheme = theme;
+        // Можно добавить логику смены путей к звукам, если потребуется
+    }
+
     private static readonly object _lock = new();
     private static bool _initialized;
     private static MediaPlayer? _clickPlayer;
@@ -25,14 +33,18 @@ internal static class SoundService
         window.AddHandler(InputElement.PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
     }
 
+
     public static void PlayClick()
     {
+        if (CurrentTheme == "None") return;
         EnsureInitialized();
         PlayMedia(ref _clickPlayer, ref _clickResolvedPath, "click");
     }
 
+
     public static void PlayApply()
     {
+        if (CurrentTheme == "None") return;
         EnsureInitialized();
         PlayMedia(ref _applyPlayer, ref _applyResolvedPath, "apply");
     }
