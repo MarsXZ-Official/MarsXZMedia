@@ -1,19 +1,19 @@
-# Third-Party Notices
+# Уведомления третьих лиц
 
-MarsXZ Media includes or interacts with third-party components.
+MarsXZ Media включает компоненты сторонних производителей или взаимодействует с ними.
 
 ## NewPipeExtractor
-License: GPL-3.0
-Used in: Android version
-Copyright: TeamNewPipe
+Лицензия: GPL-3.0
+Используется в версии для Android
+Авторские права: TeamNewPipe
 
 ## FFmpeg
-License: LGPL 2.1+ or GPL depending on build configuration
-Used in: Windows / Android media processing
+Лицензия: LGPL 2.1+ или GPL в зависимости от конфигурации сборки
+Используется в: Windows / Android media processing
 
 ## yt-dlp
-License: Unlicense for source project; some bundled executables may include GPLv3+ licensed code
-Used in: Windows version
+Лицензия: Не лицензирована для исходного проекта; некоторые исполняемые файлы могут содержать лицензионный код GPLv3+
+Используется в: Версии для Windows
 
-## Other components
-See each component's original repository and license text for full terms.
+## Другие компоненты
+Полные условия смотрите в оригинальном репозитории каждого компонента и в тексте лицензии.
